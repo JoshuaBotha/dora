@@ -1,0 +1,9 @@
+# MANIFEST.in
+include README.md
+include LICENSE
+include requirements.txt
+include requirements-dev.txt
+recursive-include directory_explorer/templates *.html
+recursive-include directory_explorer/static *.css *.js
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]

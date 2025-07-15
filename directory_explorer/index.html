@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Directory Explorer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #2c3e50;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 300;
+        }
+
+        .header p {
+            margin: 10px 0 0 0;
+            color: #7f8c8d;
+            font-size: 1.1rem;
+        }
+
+        .path-info {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .path-info::before {
+            content: "📁";
+            font-size: 1.2em;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 25px 0;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #2980b9, #2471a3);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
+        }
+
+        .btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid #ecf0f1;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            color: #e74c3c;
+            background: linear-gradient(135deg, #fadbd8, #f1948a);
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid #e74c3c;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 25px 0;
+        }
+
+        .stat {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            border: 1px solid #dee2e6;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 550px;
+            margin: 30px 0;
+            background: #fafafa;
+            border-radius: 10px;
+            padding: 20px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #7f8c8d;
+        }
+
+        .empty-state h3 {
+            margin: 0 0 10px 0;
+            font-size: 1.5rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+                margin: 10px;
+            }
+
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .btn {
+                width: 200px;
+                justify-content: center;
+            }
+
+            .stats {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>📁 Directory Explorer</h1>
+        <p>Explore directory sizes with interactive pie charts powered by FastAPI</p>
+    </div>
+
+    <div id="pathInfo" class="path-info"></div>
+
+    <div class="controls">
+        <button id="backBtn" class="btn" onclick="goBack()" disabled>
+            ← Back
+        </button>
+        <button id="refreshBtn" class="btn" onclick="refresh()">
+            🔄 Refresh
+        </button>
+        <button class="btn" onclick="window.open('/docs', '_blank')">
+            📚 API Docs
+        </button>
+    </div>
+
+    <div id="stats" class="stats" style="display: none;">
+        <div class="stat">
+            <div id="totalSize" class="stat-value">-</div>
+            <div class="stat-label">Total Size</div>
+        </div>
+        <div class="stat">
+            <div id="itemCount" class="stat-value">-</div>
+            <div class="stat-label">Items</div>
+        </div>
+        <div class="stat">
+            <div id="dirCount" class="stat-value">-</div>
+            <div class="stat-label">Directories</div>
+        </div>
+        <div class="stat">
+            <div id="fileCount" class="stat-value">-</div>
+            <div class="stat-label">Files</div>
+        </div>
+    </div>
+
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <span>Analyzing directory structure...</span>
+    </div>
+
+    <div id="error" class="error" style="display: none;"></div>
+
+    <div class="chart-container">
+        <canvas id="pieChart"></canvas>
+    </div>
+</div>
+
+<script>
+    let currentPath = '';
+    let currentData = null;
+    let chart = null;
+    let pathHistory = [];
+
+    function formatBytes(bytes) {
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        let size = bytes;
+        let unitIndex = 0;
+
+        while (size >= 1024 && unitIndex < units.length - 1) {
+            size /= 1024;
+            unitIndex++;
+        }
+
+        return `${size.toFixed(1)} ${units[unitIndex]}`;
+    }
+
+    function updateUI(data) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('error').style.display = 'none';
+
+        // Update path info
+        document.getElementById('pathInfo').textContent = data.path;
+
+        // Update stats
+        const dirCount = data.items.filter(item => item.type === 'directory').length;
+        const fileCount = data.items.filter(item => item.type === 'file').length;
+
+        document.getElementById('totalSize').textContent = formatBytes(data.total_size);
+        document.getElementById('itemCount').textContent = data.items.length;
+        document.getElementById('dirCount').textContent = dirCount;
+        document.getElementById('fileCount').textContent = fileCount;
+        document.getElementById('stats').style.display = 'grid';
+
+        // Update back button
+        document.getElementById('backBtn').disabled = pathHistory.length === 0;
+
+        // Create chart
+        if (data.items.length > 0) {
+            createChart(data);
+        } else {
+            showEmptyState();
+        }
+    }
+
+    function showEmptyState() {
+        const chartContainer = document.querySelector('.chart-container');
+        chartContainer.innerHTML = `
+                <div class="empty-state">
+                    <h3>📭 Empty Directory</h3>
+                    <p>This directory appears to be empty or contains only hidden files.</p>
+                </div>
+            `;
+    }
+
+    function createChart(data) {
+        const chartContainer = document.querySelector('.chart-container');
+        chartContainer.innerHTML = '<canvas id="pieChart"></canvas>';
+
+        const ctx = document.getElementById('pieChart').getContext('2d');
+
+        if (chart) {
+            chart.destroy();
+        }
+
+        // Prepare data for chart - limit to top 20 items for readability
+        const topItems = data.items.slice(0, 20);
+        const labels = topItems.map(item => {
+            const icon = item.type === 'directory' ? '📁' : '📄';
+            return `${icon} ${item.name}`;
+        });
+        const sizes = topItems.map(item => item.size);
+        const colors = generateColors(topItems.length);
+
+        chart = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: sizes,
+                    backgroundColor: colors,
+                    borderColor: '#ffffff',
+                    borderWidth: 2,
+                    hoverBorderWidth: 3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            generateLabels: function(chart) {
+                                const data = chart.data;
+                                if (data.labels.length && data.datasets.length) {
+                                    return data.labels.map((label, i) => {
+                                        const item = currentData.items[i];
+                                        const percentage = ((item.size / currentData.total_size) * 100).toFixed(1);
+                                        return {
+                                            text: `${label} (${formatBytes(item.size)} - ${percentage}%)`,
+                                            fillStyle: data.datasets[0].backgroundColor[i],
+                                            strokeStyle: '#ffffff',
+                                            lineWidth: 2,
+                                            hidden: false,
+                                            index: i
+                                        };
+                                    });
+                                }
+                                return [];
+                            },
+                            padding: 15,
+                            usePointStyle: true,
+                            pointStyle: 'circle'
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const item = currentData.items[context.dataIndex];
+                                const percentage = ((item.size / currentData.total_size) * 100).toFixed(1);
+                                return `${item.name}: ${formatBytes(item.size)} (${percentage}%)`;
+                            }
+                        },
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleColor: '#ffffff',
+                        bodyColor: '#ffffff',
+                        borderColor: '#ffffff',
+                        borderWidth: 1
+                    }
+                },
+                onClick: function(event, elements) {
+                    if (elements.length > 0) {
+                        const index = elements[0].index;
+                        const item = currentData.items[index];
+
+                        if (item.type === 'directory') {
+                            navigateToDirectory(item.path);
+                        }
+                    }
+                },
+                animation: {
+                    animateScale: true,
+                    animateRotate: true
+                }
+            }
+        });
+
+        if (data.items.length > 20) {
+            const remaining = data.items.length - 20;
+            chartContainer.innerHTML += `
+                    <p style="text-align: center; margin-top: 10px; color: #7f8c8d;">
+                        Showing top 20 items. ${remaining} more items hidden.
+                    </p>
+                `;
+        }
+    }
+
+    function generateColors(count) {
+        const colors = [];
+        for (let i = 0; i < count; i++) {
+            const hue = (i * 137.508) % 360; // Golden angle approximation
+            colors.push(`hsla(${hue}, 70%, 60%, 0.8)`);
+        }
+        return colors;
+    }
+
+    function navigateToDirectory(path) {
+        pathHistory.push(currentPath);
+        loadDirectory(path);
+    }
+
+    function goBack() {
+        if (pathHistory.length > 0) {
+            const previousPath = pathHistory.pop();
+            loadDirectory(previousPath);
+        }
+    }
+
+    function refresh() {
+        loadDirectory(currentPath);
+    }
+
+    async function loadDirectory(path = '') {
+        document.getElementById('loading').style.display = 'flex';
+        document.getElementById('stats').style.display = 'none';
+        document.getElementById('error').style.display = 'none';
+
+        const url = `/api/analyze${path ? `?path=${encodeURIComponent(path)}` : ''}`;
+
+        try {
+            const response = await fetch(url);
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || `HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            currentPath = path;
+            currentData = data;
+            updateUI(data);
+
+        } catch (error) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').textContent = `Error: ${error.message}`;
+            document.getElementById('error').style.display = 'block';
+            console.error('Load directory error:', error);
+        }
+    }
+
+    // Initialize
+    loadDirectory();
+
+    // Handle keyboard shortcuts
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape' && pathHistory.length > 0) {
+            goBack();
+        } else if (event.key === 'F5' || (event.ctrlKey && event.key === 'r')) {
+            event.preventDefault();
+            refresh();
+        }
+    });
+</script>
+</body>
+</html>
