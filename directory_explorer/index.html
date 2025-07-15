@@ -752,12 +752,12 @@
     });
 
     // Close modal when clicking outside
-    window.onclick = function(event) {
+    window.addEventListener('click', function(event) {
         const modal = document.getElementById('folderModal');
         if (event.target === modal) {
             closeFolderDialog();
         }
-    }
+    });
 </script>
 </body>
 </html>
